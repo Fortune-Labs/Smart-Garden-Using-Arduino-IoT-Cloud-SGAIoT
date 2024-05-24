@@ -1,103 +1,63 @@
-#include "arduino_secrets.h"
-#include "thingProperties.h"
+## Arduino Code
 
-const int rpin_1 = 3;
-const int rpin_2 = 4;
-const int rpin_3 = 5;
+// Include necessary libraries
+#include <Arduino.h>
+#include <ESP8266WiFi.h>
+#include <DHT.h>
+#include <ArduinoIoTCloud.h>
+#include <WiFiConnectionManager.h>
 
-const int threshold = 80;
+// Define constants and variables
+#define DHTPIN 2
+#define DHTTYPE DHT22
+DHT dht(DHTPIN, DHTTYPE);
 
-Schedule schedValues = plant_schedule_1.getValue();
+const char* ssid = "your_SSID";
+const char* password = "your_PASSWORD";
+
+int soilMoistureValue1 = 0;
+int soilMoistureValue2 = 0;
+int soilMoistureValue3 = 0;
+float temperature = 0;
+float humidity = 0;
 
 void setup() {
+  Serial.begin(115200);
+  dht.begin();
+  pinMode(D5, OUTPUT); // Water pump control pin
 
-  Serial.begin(9600);
+  // Connect to Wi-Fi
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("Connecting to WiFi...");
+  }
 
-  //declare relay pins
-  pinMode(rpin_1, OUTPUT);
-  pinMode(rpin_2, OUTPUT);
-  pinMode(rpin_3, OUTPUT);
-
-  delay(1500);
-
-  initProperties();
+  // Connect to Arduino IoT Cloud
   ArduinoCloud.begin(ArduinoIoTPreferredConnection);
-  setDebugMessageLevel(2);
-  ArduinoCloud.printDebugInfo();
+  ArduinoCloud.addProperty(temperature, READ, ON_CHANGE, NULL);
+  ArduinoCloud.addProperty(humidity, READ, ON_CHANGE, NULL);
+  ArduinoCloud.addProperty(soilMoistureValue1, READ, ON_CHANGE, NULL);
+  ArduinoCloud.addProperty(soilMoistureValue2, READ, ON_CHANGE, NULL);
+  ArduinoCloud.addProperty(soilMoistureValue3, READ, ON_CHANGE, NULL);
 }
 
 void loop() {
   ArduinoCloud.update();
-  sensor_1 = sensorReading(A1);
-  sensor_2 = sensorReading(A2);
-  sensor_3 = sensorReading(A3);
-  
-  onPlantSchedule1Change();
-  onPlantSchedule2Change();
-  onPlantSchedule3Change();
 
-}
+  // Read sensor data
+  temperature = dht.readTemperature();
+  humidity = dht.readHumidity();
+  soilMoistureValue1 = analogRead(A0);
+  soilMoistureValue2 = analogRead(A1);
+  soilMoistureValue3 = analogRead(A2);
 
-int sensorReading(int pin){
-  int result;
-  int reading = analogRead(pin);
-  result = map(reading, 0, 1023, 100, 0);
-  return result;
-}
-
-void onPlantSchedule1Change() {
-  if (automatic_mode) {
-    if (sensor_1 < threshold && plant_schedule_1.isActive()) {
-      digitalWrite(rpin_1, HIGH);
-    } else {
-      digitalWrite(rpin_1, LOW);
-    }
-  }
-}
-
-void onPlantSchedule2Change() {
-  if (automatic_mode) {
-    if (sensor_2 < threshold && plant_schedule_1.isActive()) {
-      digitalWrite(rpin_2, HIGH);
-    } else {
-      digitalWrite(rpin_2, LOW);
-    }
-  }
-}
-
-void onPlantSchedule3Change() {
-  if (automatic_mode) {
-    if (sensor_3 < threshold && plant_schedule_1.isActive()) {
-      digitalWrite(rpin_3, HIGH);
-    } else {
-      digitalWrite(rpin_3, LOW);
-    }
-  }
-}
-
-void onRelay1Change() {
-  if (relay_1) {
-    digitalWrite(rpin_1, HIGH);
+  // Control water pump based on soil moisture
+  if (soilMoistureValue1 < 500 || soilMoistureValue2 < 500 || soilMoistureValue3 < 500) {
+    digitalWrite(D5, HIGH);
   } else {
-    digitalWrite(rpin_1, LOW);
+    digitalWrite(D5, LOW);
   }
-}
 
-void onRelay2Change() {
-  if (relay_2) {
-    digitalWrite(rpin_2, HIGH);
-  } else {
-    digitalWrite(rpin_2, LOW);
-  }
-}
-
-void onRelay3Change() {
-  if (relay_3) {
-    digitalWrite(rpin_3, HIGH);
-  } else {
-    digitalWrite(rpin_3, LOW);
-  }
-}
-
-void onAutomaticModeChange() {
+  delay(2000); // Delay for 2 seconds
 }
